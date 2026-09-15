@@ -58,10 +58,16 @@ def reset_app():
 with st.container(border=True):
     st.subheader("1. Choose a folder")
 
+    # ---------------- WINDOWS / LOCAL ----------------
     if platform.system() == "Windows":
-        display_folder = st.session_state.selected_folder or st.session_state.folder_path
+
+        display_folder = (
+            st.session_state.selected_folder
+            or st.session_state.folder_path
+        )
 
         col_a, col_b = st.columns([4, 1])
+
         with col_a:
             st.text_input(
                 "Selected folder",
@@ -73,50 +79,122 @@ with st.container(border=True):
 
         with col_b:
             if st.button("📁 Browse", use_container_width=True):
+
                 root = tk.Tk()
                 root.withdraw()
                 root.attributes("-topmost", True)
+
                 selected_folder = filedialog.askdirectory()
+
                 root.destroy()
 
                 if selected_folder:
                     st.session_state.selected_folder = selected_folder
                     st.session_state.folder_path = selected_folder
+                    st.session_state.results = None
                     st.rerun()
 
+    # ---------------- STREAMLIT CLOUD ----------------
     else:
-        st.caption("Select a folder from your computer to analyze it.")
 
-        uploaded_files = st.file_uploader(
-            "Select folder",
-            accept_multiple_files="directory",
-            label_visibility="collapsed"
+        # Hide individual uploaded file names
+        st.markdown(
+            """
+            <style>
+            [data-testid="stFileUploaderFile"] {
+                display: none !important;
+            }
+
+            [data-testid="stFileUploaderDropzoneInstructions"] {
+                display: none !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
         )
 
-        if uploaded_files:
-            try:
+        # If a folder has already been selected
+        if st.session_state.folder_path:
+
+            folder_name = st.session_state.get(
+                "cloud_folder_name",
+                "Selected folder"
+            )
+
+            col_a, col_b = st.columns([4, 1])
+
+            with col_a:
+                st.text_input(
+                    "Selected folder",
+                    value=folder_name,
+                    disabled=True,
+                    label_visibility="collapsed"
+                )
+
+            with col_b:
+                if st.button("📁 Change", use_container_width=True):
+                    st.session_state.folder_path = None
+                    st.session_state.selected_folder = None
+                    st.session_state.cloud_folder_name = None
+                    st.session_state.results = None
+                    st.rerun()
+
+        # No folder selected yet
+        else:
+
+            uploaded_files = st.file_uploader(
+                "Select folder",
+                accept_multiple_files="directory",
+                label_visibility="collapsed"
+            )
+
+            if uploaded_files:
+
                 temp_directory = tempfile.mkdtemp()
-                st.session_state.temp_dirs.append(temp_directory)
+
+                top_level_names = set()
 
                 for uploaded_file in uploaded_files:
-                    relative_path = uploaded_file.name
-                    file_path = os.path.join(temp_directory, relative_path)
 
-                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                    relative_path = uploaded_file.name.replace("\\", "/")
+
+                    parts = relative_path.split("/")
+
+                    if parts:
+                        top_level_names.add(parts[0])
+
+                    file_path = os.path.join(
+                        temp_directory,
+                        *relative_path.split("/")
+                    )
+
+                    os.makedirs(
+                        os.path.dirname(file_path),
+                        exist_ok=True
+                    )
 
                     with open(file_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
 
+                if len(top_level_names) == 1:
+                    folder_name = list(top_level_names)[0]
+                else:
+                    folder_name = "Selected folder"
+
                 st.session_state.folder_path = temp_directory
-                st.success(
-                    f"✅ Folder selected successfully — {len(uploaded_files)} file(s) ready to analyze."
-                )
+                st.session_state.selected_folder = folder_name
+                st.session_state.cloud_folder_name = folder_name
+                st.session_state.temp_dirs.append(temp_directory)
+                st.session_state.results = None
 
-            except Exception as e:
-                st.error(f"❌ Something went wrong while uploading the folder: {e}")
-                st.stop()
+                st.rerun()
 
-    folder_path = st.session_state.selected_folder or st.session_state.folder_path
+    # ---------------- ANALYZE / RESTART ----------------
+
+    folder_path = (
+        st.session_state.selected_folder
+        or st.session_state.folder_path
+    )
 
     btn_col1, btn_col2, _ = st.columns([1, 1, 3])
 
@@ -134,7 +212,6 @@ with st.container(border=True):
             on_click=reset_app,
             use_container_width=True
         )
-
 
 # ====================================================
 # ANALYSIS
