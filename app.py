@@ -63,7 +63,14 @@ with st.container(border=True):
 
         col_a, col_b = st.columns([4, 1])
         with col_a:
-            st.text_input("Selected folder", value=display_folder, disabled=True, label_visibility="collapsed", placeholder="No folder selected yet")
+            st.text_input(
+                "Selected folder",
+                value=display_folder,
+                disabled=True,
+                label_visibility="collapsed",
+                placeholder="No folder selected yet"
+            )
+
         with col_b:
             if st.button("📁 Browse", use_container_width=True):
                 root = tk.Tk()
@@ -71,47 +78,62 @@ with st.container(border=True):
                 root.attributes("-topmost", True)
                 selected_folder = filedialog.askdirectory()
                 root.destroy()
+
                 if selected_folder:
                     st.session_state.selected_folder = selected_folder
                     st.session_state.folder_path = selected_folder
                     st.rerun()
 
     else:
-        st.caption("Zip your folder, then upload it below. Max upload size: 1024 MB.")
-        uploaded_zip = st.file_uploader("Upload folder as ZIP", type=["zip"], label_visibility="collapsed")
+        st.caption("Select a folder from your computer to analyze it.")
 
-        if uploaded_zip:
+        uploaded_files = st.file_uploader(
+            "Select folder",
+            accept_multiple_files="directory",
+            label_visibility="collapsed"
+        )
+
+        if uploaded_files:
             try:
                 temp_directory = tempfile.mkdtemp()
                 st.session_state.temp_dirs.append(temp_directory)
 
-                zip_path = os.path.join(temp_directory, uploaded_zip.name)
-                with open(zip_path, "wb") as f:
-                    f.write(uploaded_zip.getbuffer())
+                for uploaded_file in uploaded_files:
+                    relative_path = uploaded_file.name
+                    file_path = os.path.join(temp_directory, relative_path)
 
-                extract_path = os.path.join(temp_directory, "extracted_folder")
-                os.makedirs(extract_path, exist_ok=True)
+                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-                with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                    zip_ref.extractall(extract_path)
+                    with open(file_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
 
-                st.session_state.folder_path = extract_path
-                st.success("✅ ZIP uploaded and extracted successfully.")
+                st.session_state.folder_path = temp_directory
+                st.success(
+                    f"✅ Folder selected successfully — {len(uploaded_files)} file(s) ready to analyze."
+                )
 
-            except zipfile.BadZipFile:
-                st.error("❌ That file isn't a valid ZIP archive. Please re-zip your folder and try again.")
-                st.stop()
             except Exception as e:
-                st.error(f"❌ Something went wrong while unpacking the ZIP: {e}")
+                st.error(f"❌ Something went wrong while uploading the folder: {e}")
                 st.stop()
 
     folder_path = st.session_state.selected_folder or st.session_state.folder_path
 
     btn_col1, btn_col2, _ = st.columns([1, 1, 3])
+
     with btn_col1:
-        analyze_clicked = st.button("🔍 Analyze Folder", type="primary", disabled=not folder_path, use_container_width=True)
+        analyze_clicked = st.button(
+            "🔍 Analyze Folder",
+            type="primary",
+            disabled=not folder_path,
+            use_container_width=True
+        )
+
     with btn_col2:
-        st.button("🔄 Restart", on_click=reset_app, use_container_width=True)
+        st.button(
+            "🔄 Restart",
+            on_click=reset_app,
+            use_container_width=True
+        )
 
 
 # ====================================================
